@@ -6,6 +6,12 @@ setmetatable(lass, lassMetatable)
 
 local unpack = unpack or table.unpack -- 5.2 compat
 
+local function assertWithLevel(condition, message, level)
+    if not condition then
+        error(message, 1 + (level or 2))
+    end
+end
+
 local function assertType(value, desiredType, errorMessage, errorLevel)
     if type(value) ~= desiredType then
         error(errorMessage, 1 + (errorLevel or 2))
@@ -13,6 +19,8 @@ local function assertType(value, desiredType, errorMessage, errorLevel)
 end
 
 -- The data that makes Lass churn ------------------------------------------------------------------
+
+lass.definedClasses = {}
 
 -- The meat of the syntax --------------------------------------------------------------------------
 
@@ -72,8 +80,15 @@ function classMakingMetatable:__call(classBody)
         error("Invalid syntax (Class body has numerical entries [" .. table.concat(invalidEntries, ", ") .. "]). This error may be a result of using multiple tables to define parent classes, which isn't possible.", 2)
     end
 
+    -- Time to create the class
+
     local parents = self
-    print(unpack(self))
+    local className = classMakingTable.upcomingClassName
+    assertWithLevel(className, "A class is being defined but no name for it was found. Are you using the library in weird ways? Unexpected behaviour might arise if you split class creation into multiple lines. Please use:\nlass 'Class' { }")
+
+    print(className, ":", unpack(parents))
+    lass.definedClasses[className] = true
+    classMakingTable.upcomingClassName = nil
 end
 
 -- Lass metatable metamethods and such go here -----------------------------------------------------
@@ -81,6 +96,8 @@ end
 -- The initial class 'ClassName' call
 lassMetatable.__call = function (callingTable, className)
     assertType(className, "string", "Class name is of type " .. tostring(type(className)) .. " instead of string \nTo create a class, use:\nlass 'ClassName' { }")
+    assertWithLevel(not lass.definedClasses[className], "Class '" .. className .. "' is already defined")
+    classMakingTable.upcomingClassName = className
     return classMakingTable
 end
 
