@@ -4,6 +4,7 @@ setmetatable(lass, lassMetatable)
 
 -- Some handy local functions to be used within the library ----------------------------------------
 
+---@diagnostic disable-next-line: deprecated
 local unpack = unpack or table.unpack -- 5.2 compat
 
 local function assertWithLevel(condition, message, level)
@@ -21,7 +22,7 @@ end
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@class LassVariableDefinition
----@field accessLevel "private"|"public"
+---@field accessLevel "protected"|"public"
 ---@field defaultValue any
 
 ---@class LassClassDefinition
@@ -59,7 +60,7 @@ local function extractPrefixesFromVariable(varName)
 end
 
 local prefixValid = {
-    private = true,
+    protected = true,
     public = true
 }
 
@@ -71,11 +72,11 @@ local function registerClassVariablesFromBody(className, classBody)
         local prefixes
         varName, prefixes = extractPrefixesFromVariable(varName)
         local noModifier = not next(prefixes)
-        local accessLevel = prefixes["private"] and "private" or "public"
+        local accessLevel = prefixes["protected"] and "protected" or "public"
 
         -- Check for nonsense
-        if prefixes.private and prefixes.public then
-            error("Variable '" .. varName .. "' is attempting to be public and private at the same time", 4)
+        if prefixes.protected and prefixes.public then
+            error("Variable '" .. varName .. "' is attempting to be public and protected at the same time", 4)
         end
         for prefix in pairs(prefixes) do
             if not prefixValid[prefix] then
