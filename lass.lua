@@ -32,6 +32,7 @@ end
 
 ---@type table<string, LassClassDefinition>
 lass.definedClasses = {}
+lass.nilValue = {} -- table for identification purposes
 
 ---@param parents string[]
 local function checkParentValidity(parents)
@@ -128,6 +129,84 @@ local function defineClass(className, parents, classBody)
     end
 
     registerClassVariablesFromBody(className, classBody)
+end
+
+local function deepCopy(t)
+    if type(t) == "table" then
+        local copiedTable = {}
+        for key, value in pairs(t) do
+            copiedTable[key] = deepCopy(value)
+        end
+        return copiedTable
+    end
+    return t
+end
+
+local function copyVariablesFromDefinition(classDefinitionVariables)
+    local variableTable = {}
+    for varName, varDefinition in pairs(classDefinitionVariables) do
+        local varValue = varDefinition.defaultValue
+        local copiedValue = varValue
+        if varValue == lass.nilValue then
+            copiedValue = nil
+        elseif type(varValue) == "table" then
+            copiedValue = deepCopy(varValue)
+        end
+
+        variableTable[varName] = copiedValue
+    end
+    return variableTable
+end
+
+local function generatePublicAccessTable(classDefinitionVariables, variableTable)
+    local accessTable = {}
+    local publicAccessMetatable = {}
+    function publicAccessMetatable.__index(t, varName)
+        local varDefinition = classDefinitionVariables[varName]
+
+        if not varDefinition then
+            error("Trying to access undefined variable '" .. tostring(varName) .. "'", 2)
+        end
+        if varDefinition.accessLevel ~= "public" then
+            error("Trying to publicly access variable '" .. tostring(varName) .. "', which is " .. varDefinition.accessLevel, 2)
+        end
+
+        return variableTable[varName]
+    end
+    function publicAccessMetatable.__newindex(t, varName, newValue)
+        local varDefinition = classDefinitionVariables[varName]
+
+        if not varDefinition then
+            error("Trying to set undefined variable '" .. tostring(varName) .. "'", 2)
+        end
+        if varDefinition.accessLevel ~= "public" then
+            error("Trying to set " .. varDefinition.accessLevel .. " variable '" .. tostring(varName) .. "' in the public scope", 2)
+        end
+
+        variableTable[varName] = newValue
+    end
+    return setmetatable(accessTable, publicAccessMetatable)
+end
+
+local function generateClassInstance(className, ...)
+    local classDefinition = lass.definedClasses[className]
+    local classDefinitionVariables = classDefinition.variables
+
+    local variableTable = copyVariablesFromDefinition(classDefinitionVariables)
+
+    return generatePublicAccessTable(classDefinitionVariables, variableTable)
+end
+
+---@generic T
+---@param className `T`
+---@param ... unknown
+---@return `T`
+function lass.new(className, ...)
+    if not lass.definedClasses[className] then
+        error("Class '" .. tostring(className) .. "' has not been defined", 2)
+    end
+
+    return generateClassInstance(className, ...)
 end
 
 -- The meat of the syntax --------------------------------------------------------------------------
