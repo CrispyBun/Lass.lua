@@ -160,32 +160,36 @@ end
 
 local function generatePublicAccessTable(classDefinitionVariables, variableTable)
     local accessTable = {}
-    local publicAccessMetatable = {}
-    function publicAccessMetatable.__index(t, varName)
-        local varDefinition = classDefinitionVariables[varName]
-
-        if not varDefinition then
-            error("Trying to access undefined variable '" .. tostring(varName) .. "'", 2)
-        end
-        if varDefinition.accessLevel ~= "public" then
-            error("Trying to publicly access variable '" .. tostring(varName) .. "', which is " .. varDefinition.accessLevel, 2)
-        end
-
-        return variableTable[varName]
-    end
-    function publicAccessMetatable.__newindex(t, varName, newValue)
-        local varDefinition = classDefinitionVariables[varName]
-
-        if not varDefinition then
-            error("Trying to set undefined variable '" .. tostring(varName) .. "'", 2)
-        end
-        if varDefinition.accessLevel ~= "public" then
-            error("Trying to set " .. varDefinition.accessLevel .. " variable '" .. tostring(varName) .. "' in the public scope", 2)
-        end
-
-        variableTable[varName] = newValue
-    end
+    
     return setmetatable(accessTable, publicAccessMetatable)
+end
+
+local publicAccessMetatable = {}
+function publicAccessMetatable.__index(instance, varName)
+    local classDefinitionVariables = instance.__classDefinition.variables
+    local varDefinition = classDefinitionVariables[varName]
+
+    if not varDefinition then
+        error("Trying to access undefined variable '" .. tostring(varName) .. "'", 2)
+    end
+    if varDefinition.accessLevel ~= "public" then
+        error("Trying to publicly access variable '" .. tostring(varName) .. "', which is " .. varDefinition.accessLevel, 2)
+    end
+
+    return instance.__variablesRaw[varName]
+end
+function publicAccessMetatable.__newindex(instance, varName, newValue)
+    local classDefinitionVariables = instance.__classDefinition.variables
+    local varDefinition = classDefinitionVariables[varName]
+
+    if not varDefinition then
+        error("Trying to set undefined variable '" .. tostring(varName) .. "'", 2)
+    end
+    if varDefinition.accessLevel ~= "public" then
+        error("Trying to set " .. varDefinition.accessLevel .. " variable '" .. tostring(varName) .. "' in the public scope", 2)
+    end
+
+    instance.__variablesRaw[varName] = newValue
 end
 
 local function generateClassInstance(className, ...)
@@ -193,8 +197,12 @@ local function generateClassInstance(className, ...)
     local classDefinitionVariables = classDefinition.variables
 
     local variableTable = copyVariablesFromDefinition(classDefinitionVariables)
+    local accessTable = {
+        __variablesRaw = variableTable,
+        __classDefinition = classDefinition
+    }
 
-    return generatePublicAccessTable(classDefinitionVariables, variableTable)
+    return setmetatable(accessTable, publicAccessMetatable)
 end
 
 ---@generic T
