@@ -158,12 +158,6 @@ local function copyVariablesFromDefinition(classDefinitionVariables)
     return variableTable
 end
 
-local function generatePublicAccessTable(classDefinitionVariables, variableTable)
-    local accessTable = {}
-    
-    return setmetatable(accessTable, publicAccessMetatable)
-end
-
 local publicAccessMetatable = {}
 function publicAccessMetatable.__index(instance, varName)
     local classDefinitionVariables = instance.__classDefinition.variables
