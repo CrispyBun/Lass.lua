@@ -158,31 +158,29 @@ local function copyVariablesFromDefinition(classDefinitionVariables)
     return variableTable
 end
 
-local publicAccessMetatable = {}
-function publicAccessMetatable.__index(instance, varName)
+local function verifyInstanceAccessLevel(instance, varName)
     local classDefinitionVariables = instance.__classDefinition.variables
     local varDefinition = classDefinitionVariables[varName]
+    local neededAccessLevel = varDefinition.accessLevel
+
+    local accessLevel = instance.__currentAccessLevel
+    local canAccessVariable = (accessLevel == neededAccessLevel) or (neededAccessLevel == "public") or (accessLevel ~= "public" and neededAccessLevel == "protected")
 
     if not varDefinition then
-        error("Trying to access undefined variable '" .. tostring(varName) .. "'", 2)
+        error("Trying to access undefined variable '" .. tostring(varName) .. "'", 3)
     end
-    if varDefinition.accessLevel ~= "public" then
-        error("Trying to publicly access variable '" .. tostring(varName) .. "', which is " .. varDefinition.accessLevel, 2)
+    if not canAccessVariable then
+        error("Trying to access " .. neededAccessLevel .. " variable '" .. tostring(varName) .. "' in the " .. tostring(accessLevel) .. " scope", 3)
     end
+end
 
+local instanceAccessMetatable = {}
+function instanceAccessMetatable.__index(instance, varName)
+    verifyInstanceAccessLevel(instance, varName)
     return instance.__variablesRaw[varName]
 end
-function publicAccessMetatable.__newindex(instance, varName, newValue)
-    local classDefinitionVariables = instance.__classDefinition.variables
-    local varDefinition = classDefinitionVariables[varName]
-
-    if not varDefinition then
-        error("Trying to set undefined variable '" .. tostring(varName) .. "'", 2)
-    end
-    if varDefinition.accessLevel ~= "public" then
-        error("Trying to set " .. varDefinition.accessLevel .. " variable '" .. tostring(varName) .. "' in the public scope", 2)
-    end
-
+function instanceAccessMetatable.__newindex(instance, varName, newValue)
+    verifyInstanceAccessLevel(instance, varName)
     instance.__variablesRaw[varName] = newValue
 end
 
@@ -193,10 +191,11 @@ local function generateClassInstance(className, ...)
     local variableTable = copyVariablesFromDefinition(classDefinitionVariables)
     local accessTable = {
         __variablesRaw = variableTable,
-        __classDefinition = classDefinition
+        __classDefinition = classDefinition,
+        __currentAccessLevel = "public"
     }
 
-    return setmetatable(accessTable, publicAccessMetatable)
+    return setmetatable(accessTable, instanceAccessMetatable)
 end
 
 ---@generic T
