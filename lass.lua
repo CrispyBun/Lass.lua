@@ -24,6 +24,7 @@ end
 ---@class LassVariableDefinition
 ---@field accessLevel "protected"|"public"
 ---@field defaultValue any
+---@field nonOverwriteable boolean
 
 ---@class LassClassDefinition
 ---@field variables table<string, LassVariableDefinition>
@@ -62,7 +63,8 @@ end
 
 local prefixValid = {
     protected = true,
-    public = true
+    public = true,
+    nonmethod = true
 }
 
 local function registerClassVariablesFromBody(className, classBody)
@@ -98,11 +100,29 @@ local function registerClassVariablesFromBody(className, classBody)
             end
         end
 
+        local nonOverwriteable = false
+        -- Modify funcions' access levels
+        if type(varValue) == "function" and not prefixes["nonmethod"] then
+            nonOverwriteable = true
+            local definedMethod = varValue
+            ---@type unknown
+            varValue = function (t, ...)
+                if type(t) ~= "table" then
+                    error("Trying to call method '" .. tostring(varName) .. "' as a non-method function (using . instead of :)\nTo define a non-method function, use the 'nonmethod' modifier in the variable definition.", 2)
+                end
+                local previousAccessLevel = t.__currentAccessLevel
+                t.__currentAccessLevel = "private_" .. className
+                local returns = {definedMethod(t, ...)}
+                t.__currentAccessLevel = previousAccessLevel
+                return unpack(returns)
+            end
+        end
+
         -- Add to class
         if classDefinition.variables[varName] then
             classDefinition.variables[varName].defaultValue = varValue
         else
-            classDefinition.variables[varName] = {accessLevel = accessLevel, defaultValue = varValue}
+            classDefinition.variables[varName] = {accessLevel = accessLevel, defaultValue = varValue, nonOverwriteable = nonOverwriteable}
         end
     end
 end
@@ -124,7 +144,7 @@ local function defineClass(className, parents, classBody)
         local parentName = parents[parentIndex]
         local parentClassDefinition = lass.definedClasses[parentName]
         for varName, varValue in pairs(parentClassDefinition.variables) do
-            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = varValue.defaultValue}
+            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = varValue.defaultValue, nonOverwriteable = varValue.nonOverwriteable}
         end
     end
 
@@ -174,6 +194,18 @@ local function verifyInstanceAccessLevel(instance, varName)
     end
 end
 
+local function verifyAllowedOverwrite(instance, varName)
+    local classDefinitionVariables = instance.__classDefinition.variables
+    local varDefinition = classDefinitionVariables[varName]
+    local nonOverwriteable = varDefinition.nonOverwriteable
+    if nonOverwriteable then
+        if type(varDefinition.defaultValue) == "function" then
+            error("Trying to overwrite a method or constant function\nMethods may not be overwritten. If you want an overwriteable function, mark it as nonmethod.", 3)
+        end
+        error("Trying to overwrite a constant value", 3)
+    end
+end
+
 local instanceAccessMetatable = {}
 function instanceAccessMetatable.__index(instance, varName)
     verifyInstanceAccessLevel(instance, varName)
@@ -181,6 +213,7 @@ function instanceAccessMetatable.__index(instance, varName)
 end
 function instanceAccessMetatable.__newindex(instance, varName, newValue)
     verifyInstanceAccessLevel(instance, varName)
+    verifyAllowedOverwrite(instance, varName)
     instance.__variablesRaw[varName] = newValue
 end
 
