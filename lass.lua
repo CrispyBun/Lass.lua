@@ -54,6 +54,8 @@ end
 ---@type table<string, LassClassDefinition>
 lass.definedClasses = {}
 lass.nilValue = {} -- table for identification purposes
+lass.softNil = {}
+lass.hardNil = lass.nilValue
 
 ---@param parents string[]
 local function verifyParentValidity(parents)
@@ -144,7 +146,7 @@ local function registerClassVariablesFromBody(className, classBody)
         end
 
         -- Copy tables over
-        if type(varValue) == "table" and not isReference and not varValue == lass.nilValue then
+        if type(varValue) == "table" and not isReference and not varValue == lass.nilValue and not varValue == lass.softNil then
             varValue = deepCopy(varValue)
         end
 
@@ -192,7 +194,12 @@ local function defineClass(className, parents, classBody)
                 if currentVariable.nonOverwriteable ~= varValue.nonOverwriteable then error("Variable '" .. varName .. "' is defined both as constant and as non-constant in parents.\nIn the case of functions, methods are considered constant, while nonmethods are not.", 3) end
             end
 
-            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = varValue.defaultValue, nonOverwriteable = varValue.nonOverwriteable, isReference = varValue.isReference}
+            local value = varValue.defaultValue
+            if value == lass.softNil and currentVariable then
+                value = currentVariable.defaultValue
+            end
+
+            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = value, nonOverwriteable = varValue.nonOverwriteable, isReference = varValue.isReference}
         end
     end
 
@@ -204,7 +211,7 @@ local function copyVariablesFromDefinition(classDefinitionVariables)
     for varName, varDefinition in pairs(classDefinitionVariables) do
         local varValue = varDefinition.defaultValue
         local copiedValue = varValue
-        if varValue == lass.nilValue then
+        if varValue == lass.nilValue or varValue == lass.softNil then
             copiedValue = nil
         elseif type(varValue) == "table" and not varDefinition.isReference then
             copiedValue = deepCopy(varValue)
