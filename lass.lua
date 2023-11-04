@@ -36,7 +36,7 @@ lass.definedClasses = {}
 lass.nilValue = {} -- table for identification purposes
 
 ---@param parents string[]
-local function checkParentValidity(parents)
+local function verifyParentValidity(parents)
     for i = 1, #parents do
         local parentName = parents[i]
         if not lass.definedClasses[parentName] then
@@ -118,6 +118,18 @@ local function registerClassVariablesFromBody(className, classBody)
             end
         end
 
+        -- Make sure nonOverwriteable vars stay nonOverwriteable and vice versa
+        if classDefinition.variables[varName] then
+            local wasNonOverwriteable = classDefinition.variables[varName].nonOverwriteable
+            if wasNonOverwriteable ~= nonOverwriteable then
+                if wasNonOverwriteable then
+                    error("Attempting to make constant variable '" .. varName .. "' non-constant. In the case of functions, methods are considered constant, and nonmethods are not.", 4)
+                else
+                    error("Attempting to make non-constant variable '" .. varName .. "' constant. In the case of functions, methods are considered constant, and nonmethods are not.", 4)
+                end
+            end
+        end
+
         -- Add to class
         if classDefinition.variables[varName] then
             classDefinition.variables[varName].defaultValue = varValue
@@ -131,7 +143,7 @@ end
 ---@param parents string[]
 ---@param classBody table
 local function defineClass(className, parents, classBody)
-    checkParentValidity(parents)
+    verifyParentValidity(parents)
 
     ---@type LassClassDefinition
     local classDefinition = {
@@ -140,10 +152,16 @@ local function defineClass(className, parents, classBody)
     lass.definedClasses[className] = classDefinition
 
     -- Inherit variables
-    for parentIndex = 1, #parents do
+    for parentIndex = #parents, 1, -1 do
         local parentName = parents[parentIndex]
         local parentClassDefinition = lass.definedClasses[parentName]
         for varName, varValue in pairs(parentClassDefinition.variables) do
+            local currentVariable = classDefinition.variables[varName]
+            if currentVariable then
+                if currentVariable.accessLevel ~= varValue.accessLevel then error("Variable access level clash in inheriting classes - variable '" .. varName .. "' is defined both as " .. currentVariable.accessLevel .. " and " .. varValue.accessLevel .. " in parents", 3) end
+                if currentVariable.nonOverwriteable ~= varValue.nonOverwriteable then error("Variable '" .. varName .. "' is defined both as constant and as non-constant in parents.\nIn the case of functions, methods are considered constant, while nonmethods are not.", 3) end
+            end
+
             classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = varValue.defaultValue, nonOverwriteable = varValue.nonOverwriteable}
         end
     end
