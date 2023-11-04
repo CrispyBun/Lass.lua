@@ -44,6 +44,7 @@ end
 ---@field accessLevel "protected"|"public"
 ---@field defaultValue any
 ---@field nonOverwriteable boolean
+---@field isReference boolean
 
 ---@class LassClassDefinition
 ---@field variables table<string, LassVariableDefinition>
@@ -83,7 +84,8 @@ end
 local prefixValid = {
     protected = true,
     public = true,
-    nonmethod = true
+    nonmethod = true,
+    reference = true
 }
 
 local function registerClassVariablesFromBody(className, classBody)
@@ -123,6 +125,8 @@ local function registerClassVariablesFromBody(className, classBody)
         end
 
         local nonOverwriteable = false
+        local isReference = prefixes["reference"]
+
         -- Modify functions' access levels
         if type(varValue) == "function" and not prefixes["nonmethod"] then
             nonOverwriteable = true
@@ -141,7 +145,7 @@ local function registerClassVariablesFromBody(className, classBody)
         end
 
         -- Copy tables over
-        if type(varValue) == "table" then
+        if type(varValue) == "table" and not isReference then
             varValue = deepCopy(varValue)
         end
 
@@ -161,7 +165,7 @@ local function registerClassVariablesFromBody(className, classBody)
         if classDefinition.variables[varName] then
             classDefinition.variables[varName].defaultValue = varValue
         else
-            classDefinition.variables[varName] = {accessLevel = accessLevel, defaultValue = varValue, nonOverwriteable = nonOverwriteable}
+            classDefinition.variables[varName] = {accessLevel = accessLevel, defaultValue = varValue, nonOverwriteable = nonOverwriteable, isReference = isReference}
         end
     end
 end
@@ -189,7 +193,7 @@ local function defineClass(className, parents, classBody)
                 if currentVariable.nonOverwriteable ~= varValue.nonOverwriteable then error("Variable '" .. varName .. "' is defined both as constant and as non-constant in parents.\nIn the case of functions, methods are considered constant, while nonmethods are not.", 3) end
             end
 
-            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = varValue.defaultValue, nonOverwriteable = varValue.nonOverwriteable}
+            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = varValue.defaultValue, nonOverwriteable = varValue.nonOverwriteable, isReference = varValue.isReference}
         end
     end
 
@@ -203,7 +207,7 @@ local function copyVariablesFromDefinition(classDefinitionVariables)
         local copiedValue = varValue
         if varValue == lass.nilValue then
             copiedValue = nil
-        elseif type(varValue) == "table" then
+        elseif type(varValue) == "table" and not varDefinition.isReference then
             copiedValue = deepCopy(varValue)
         end
 
