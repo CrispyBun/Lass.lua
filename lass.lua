@@ -86,7 +86,8 @@ local prefixValid = {
     protected = true,
     public = true,
     nonmethod = true,
-    reference = true
+    reference = true,
+    const = true
 }
 
 local function registerClassVariablesFromBody(className, classBody)
@@ -122,8 +123,8 @@ local function registerClassVariablesFromBody(className, classBody)
             end
         end
 
-        local nonOverwriteable = false
-        local isReference = prefixes["reference"]
+        local nonOverwriteable = prefixes["const"] or false
+        local isReference = prefixes["reference"] or false
 
         -- Modify functions' access levels
         if type(varValue) == "function" and not prefixes["nonmethod"] then
@@ -152,9 +153,9 @@ local function registerClassVariablesFromBody(className, classBody)
             local wasNonOverwriteable = classDefinition.variables[varName].nonOverwriteable
             if wasNonOverwriteable ~= nonOverwriteable then
                 if wasNonOverwriteable then
-                    error("Attempting to make constant variable '" .. varName .. "' non-constant. In the case of functions, methods are considered constant, and nonmethods are not.", 4)
+                    error("Attempting to make constant variable '" .. varName .. "' non-constant. In the case of functions, methods are considered constant, and nonmethods are not.\nPlease mark the variable with the 'const' keyword.", 4)
                 else
-                    error("Attempting to make non-constant variable '" .. varName .. "' constant. In the case of functions, methods are considered constant, and nonmethods are not.", 4)
+                    error("Attempting to make non-constant variable '" .. varName .. "' constant. In the case of functions, methods are considered constant, and nonmethods are not.\nTo make a function non-constant, mark it with the 'nonmethod' keyword.", 4)
                 end
             end
         end
