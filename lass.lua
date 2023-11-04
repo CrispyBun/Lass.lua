@@ -19,6 +19,17 @@ local function assertType(value, desiredType, errorMessage, errorLevel)
     end
 end
 
+local function deepCopy(t)
+    if type(t) == "table" then
+        local copiedTable = {}
+        for key, value in pairs(t) do
+            copiedTable[key] = deepCopy(value)
+        end
+        return copiedTable
+    end
+    return t
+end
+
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@class LassVariableDefinition
@@ -104,7 +115,7 @@ local function registerClassVariablesFromBody(className, classBody)
         end
 
         local nonOverwriteable = false
-        -- Modify funcions' access levels
+        -- Modify functions' access levels
         if type(varValue) == "function" and not prefixes["nonmethod"] then
             nonOverwriteable = true
             local definedMethod = varValue
@@ -119,6 +130,11 @@ local function registerClassVariablesFromBody(className, classBody)
                 t.__currentAccessLevel = previousAccessLevel
                 return unpack(returns)
             end
+        end
+
+        -- Copy tables over
+        if type(varValue) == "table" then
+            varValue = deepCopy(varValue)
         end
 
         -- Make sure nonOverwriteable vars stay nonOverwriteable and vice versa
@@ -170,17 +186,6 @@ local function defineClass(className, parents, classBody)
     end
 
     registerClassVariablesFromBody(className, classBody)
-end
-
-local function deepCopy(t)
-    if type(t) == "table" then
-        local copiedTable = {}
-        for key, value in pairs(t) do
-            copiedTable[key] = deepCopy(value)
-        end
-        return copiedTable
-    end
-    return t
 end
 
 local function copyVariablesFromDefinition(classDefinitionVariables)
