@@ -82,6 +82,7 @@ local function extractPrefixesFromVariable(varName)
 end
 
 local prefixValid = {
+    [""] = true, -- for spacing if there's no modifiers
     protected = true,
     public = true,
     nonmethod = true,
@@ -103,9 +104,6 @@ local function registerClassVariablesFromBody(className, classBody)
             error("Variable '" .. varName .. "' is attempting to be public and protected at the same time", 4)
         end
         for prefix in pairs(prefixes) do
-            if prefix == "" then
-                error("Variable '" .. varName .. "' has two underscores preceding it but no access modifiers")
-            end
             if not prefixValid[prefix] then
                 error("Unknown access modifier '" .. prefix .. "' in variable '" .. varName .. "'", 4)
             end
