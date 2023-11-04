@@ -144,7 +144,7 @@ local function registerClassVariablesFromBody(className, classBody)
         end
 
         -- Copy tables over
-        if type(varValue) == "table" and not isReference then
+        if type(varValue) == "table" and not isReference and not varValue == lass.nilValue then
             varValue = deepCopy(varValue)
         end
 
