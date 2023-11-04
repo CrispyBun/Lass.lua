@@ -74,7 +74,7 @@ local function registerClassVariablesFromBody(className, classBody)
     for varName, varValue in pairs(classBody) do
         local prefixes
         varName, prefixes = extractPrefixesFromVariable(varName)
-        local noModifier = not next(prefixes)
+        local noAccessModifier = not (prefixes["private"] or prefixes["protected"] or prefixes["public"])
         local accessLevel = prefixes["protected"] and "protected" or "public"
 
         -- Check for nonsense
@@ -82,6 +82,9 @@ local function registerClassVariablesFromBody(className, classBody)
             error("Variable '" .. varName .. "' is attempting to be public and protected at the same time", 4)
         end
         for prefix in pairs(prefixes) do
+            if prefix == "" then
+                error("Variable '" .. varName .. "' has two underscores preceding it but no access modifiers")
+            end
             if not prefixValid[prefix] then
                 error("Unknown access modifier '" .. prefix .. "' in variable '" .. varName .. "'", 4)
             end
@@ -94,7 +97,7 @@ local function registerClassVariablesFromBody(className, classBody)
         varNamesUsed[varName] = true
 
         -- Make sure a variable's access level can't be changed
-        if not noModifier and classDefinition.variables[varName] then
+        if not noAccessModifier and classDefinition.variables[varName] then
             if classDefinition.variables[varName].accessLevel ~= accessLevel then
                 error("Attempting to change access level of variable '" .. varName .. "' from " .. classDefinition.variables[varName].accessLevel .. " to " .. accessLevel, 4)
             end
@@ -298,7 +301,6 @@ function classMakingTable:from(parents)
     error("Trying to inherit from a non-string type (" .. tostring(type(parents)) .. ")", 2)
 end
 classMakingTable.D = classMakingTable.from -- class 'Class' :D 'Parent' is valid syntax, you are welcome
-classMakingTable._ = classMakingTable.from
 
 function classMakingMetatable:__call(classBody)
     -- Adding many classes without table
