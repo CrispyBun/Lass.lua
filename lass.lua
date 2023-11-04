@@ -19,11 +19,19 @@ local function assertType(value, desiredType, errorMessage, errorLevel)
     end
 end
 
-local function deepCopy(t)
+local function deepCopy(t, _seenTables)
+    _seenTables = _seenTables or {}
     if type(t) == "table" then
         local copiedTable = {}
+
+        if _seenTables[t] then
+            return _seenTables[t]
+        else
+            _seenTables[t] = copiedTable
+        end
+
         for key, value in pairs(t) do
-            copiedTable[key] = deepCopy(value)
+            copiedTable[key] = deepCopy(value, _seenTables)
         end
         return copiedTable
     end
