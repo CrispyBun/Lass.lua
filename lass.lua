@@ -41,7 +41,7 @@ end
 -- Definitions -------------------------------------------------------------------------------------
 
 ---@class LassVariableDefinition
----@field accessLevel "protected"|"public"
+---@field accessLevel string
 ---@field defaultValue any
 ---@field nonOverwriteable boolean
 ---@field isReference boolean
@@ -85,6 +85,7 @@ end
 
 local prefixValid = {
     [""] = true, -- for spacing if there's no modifiers
+    private = true,
     protected = true,
     public = true,
     nonmethod = true,
@@ -100,11 +101,15 @@ local function registerClassVariablesFromBody(className, classBody)
         local prefixes
         varName, prefixes = extractPrefixesFromVariable(varName)
         local noAccessModifier = not (prefixes["private"] or prefixes["protected"] or prefixes["public"])
-        local accessLevel = prefixes["protected"] and "protected" or "public"
+        local accessLevel = (prefixes["private"] and "private_" .. className) or (prefixes["protected"] and "protected") or "public"
 
         -- Check for nonsense
-        if prefixes.protected and prefixes.public then
-            error("Variable '" .. varName .. "' is attempting to be public and protected at the same time", 4)
+        local accessModifierCount = 0
+        accessModifierCount = accessModifierCount + (prefixes.private and 1 or 0)
+        accessModifierCount = accessModifierCount + (prefixes.protected and 1 or 0)
+        accessModifierCount = accessModifierCount + (prefixes.public and 1 or 0)
+        if accessModifierCount > 1 then
+            error("Variable '" .. varName .. "' has more than one access level modifier", 4)
         end
         for prefix in pairs(prefixes) do
             if not prefixValid[prefix] then
@@ -118,10 +123,19 @@ local function registerClassVariablesFromBody(className, classBody)
         end
         varNamesUsed[varName] = true
 
+        -- Extra edge-case for privates
+        if classDefinition.variables[varName] then
+            if string.sub(classDefinition.variables[varName].accessLevel, 1, 8) == "private_" then
+                error("Variable '" .. varName .. "' already exists as a private variable within a parent (due to a limitation, private variable names have to be unique)", 4)
+            end
+        end
+
         -- Make sure a variable's access level can't be changed
         if not noAccessModifier and classDefinition.variables[varName] then
             if classDefinition.variables[varName].accessLevel ~= accessLevel then
-                error("Attempting to change access level of variable '" .. varName .. "' from " .. classDefinition.variables[varName].accessLevel .. " to " .. accessLevel, 4)
+                local newAccessLevel = accessLevel
+                if string.sub(newAccessLevel, 1, 8) == "private_" then newAccessLevel = "private" end
+                error("Attempting to change access level of variable '" .. varName .. "' from " .. classDefinition.variables[varName].accessLevel .. " to " .. newAccessLevel, 4)
             end
         end
 
@@ -190,7 +204,16 @@ local function defineClass(className, parents, classBody)
         for varName, varValue in pairs(parentClassDefinition.variables) do
             local currentVariable = classDefinition.variables[varName]
             if currentVariable then
-                if currentVariable.accessLevel ~= varValue.accessLevel then error("Variable access level clash in inheriting classes - variable '" .. varName .. "' is defined both as " .. currentVariable.accessLevel .. " and " .. varValue.accessLevel .. " in parents", 3) end
+                if currentVariable.accessLevel ~= varValue.accessLevel then
+                    local accessLevelCurrent = currentVariable.accessLevel
+                    local accessLevelNext = varValue.accessLevel
+                    if string.sub(accessLevelCurrent, 1, 8) == "private_" then accessLevelCurrent = "private" end
+                    if string.sub(accessLevelNext, 1, 8) == "private_" then accessLevelNext = "private" end
+                    if accessLevelCurrent == "private" and accessLevelNext == "private" then
+                        error("Variable clash in inheriting classes - variable '" .. varName .. "' is private and defined in more than one parent (due to a limitation, private variables need to be unique in the whole inheritance tree)", 3)
+                    end
+                    error("Variable access level clash in inheriting classes - variable '" .. varName .. "' is defined both as " .. accessLevelCurrent .. " and " .. accessLevelNext .. " in parents", 3)
+                end
                 if currentVariable.nonOverwriteable ~= varValue.nonOverwriteable then error("Variable '" .. varName .. "' is defined both as constant and as non-constant in parents.\nIn the case of functions, methods are considered constant, while nonmethods are not.", 3) end
             end
 
@@ -225,15 +248,21 @@ end
 local function verifyInstanceAccessLevel(instance, varName)
     local classDefinitionVariables = instance.__classDefinition.variables
     local varDefinition = classDefinitionVariables[varName]
-    local neededAccessLevel = varDefinition.accessLevel
-
-    local accessLevel = instance.__currentAccessLevel
-    local canAccessVariable = (accessLevel == neededAccessLevel) or (neededAccessLevel == "public") or (accessLevel ~= "public" and neededAccessLevel == "protected")
 
     if not varDefinition then
         error("Trying to access undefined variable '" .. tostring(varName) .. "'", 3)
     end
+
+    local neededAccessLevel = varDefinition.accessLevel
+    local accessLevel = instance.__currentAccessLevel
+    local canAccessVariable = (accessLevel == neededAccessLevel) or (neededAccessLevel == "public") or (accessLevel ~= "public" and neededAccessLevel == "protected")
+
     if not canAccessVariable then
+        if string.sub(neededAccessLevel, 1, 8) == "private_" then neededAccessLevel = "private" end
+        if string.sub(accessLevel, 1, 8) == "private_" then accessLevel = "private" end
+        if neededAccessLevel == "private" and accessLevel == "private" then
+            error("Trying to access private variable '" .. tostring(varName) .. "' outside of its class", 3)
+        end
         error("Trying to access " .. neededAccessLevel .. " variable '" .. tostring(varName) .. "' in the " .. tostring(accessLevel) .. " scope", 3)
     end
 end
