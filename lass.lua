@@ -314,6 +314,7 @@ local function generateClassInstance(className, ...)
     return setmetatable(accessTable, instanceAccessMetatable)
 end
 
+---Creates a new class instance
 ---@generic T
 ---@param className `T`
 ---@param ... unknown
@@ -354,6 +355,7 @@ local function extractClassName(class)
     error("Invalid type (" .. classType .. "), please provide a class instance or class name", 3)
 end
 
+---Checks if the first argument is a subclass of or the same class as the second argument
 ---@param childClassInstanceOrName table|string
 ---@param parentClassInstanceOrName table|string
 ---@return boolean
@@ -362,6 +364,7 @@ function lass.is(childClassInstanceOrName, parentClassInstanceOrName)
     local parentName = extractClassName(parentClassInstanceOrName)
     return classIs(childName, parentName)
 end
+lass.implements = lass.is
 
 -- The meat of the syntax --------------------------------------------------------------------------
 
