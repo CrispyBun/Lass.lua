@@ -47,7 +47,9 @@ end
 ---@field isReference boolean
 
 ---@class LassClassDefinition
+---@field name string
 ---@field variables table<string, LassVariableDefinition>
+---@field fullComposition table<string, boolean>
 
 -- The stuff that makes Lass churn -----------------------------------------------------------------
 
@@ -193,7 +195,9 @@ local function defineClass(className, parents, classBody)
 
     ---@type LassClassDefinition
     local classDefinition = {
+        name = className,
         variables = {},
+        fullComposition = {}
     }
     lass.definedClasses[className] = classDefinition
 
@@ -201,6 +205,12 @@ local function defineClass(className, parents, classBody)
     for parentIndex = #parents, 1, -1 do
         local parentName = parents[parentIndex]
         local parentClassDefinition = lass.definedClasses[parentName]
+
+        for key, value in pairs(parentClassDefinition.fullComposition) do
+            classDefinition.fullComposition[key] = value
+        end
+        classDefinition.fullComposition[parentName] = true
+
         for varName, varValue in pairs(parentClassDefinition.variables) do
             local currentVariable = classDefinition.variables[varName]
             if currentVariable then
@@ -314,6 +324,43 @@ function lass.new(className, ...)
     end
 
     return generateClassInstance(className, ...)
+end
+
+---@param childClassName string
+---@param parentClassName string
+---@return boolean
+local function classIs(childClassName, parentClassName)
+    local classDefinition = lass.definedClasses[childClassName]
+    if not classDefinition then error("Unknown class '" .. childClassName .. "'", 3) end
+
+    if childClassName == parentClassName then return true end
+    return classDefinition.fullComposition[parentClassName] or false
+end
+
+---@param class any
+---@return string
+local function extractClassName(class)
+    local classType = type(class)
+    if classType == "string" then
+        return class
+    end
+
+    if classType == "table" then
+        if class.__classDefinition then
+            return class.__classDefinition.name
+        end
+        error("Trying to compare a non-class table to a class", 3)
+    end
+    error("Invalid type (" .. classType .. "), please provide a class instance or class name", 3)
+end
+
+---@param childClassInstanceOrName table|string
+---@param parentClassInstanceOrName table|string
+---@return boolean
+function lass.is(childClassInstanceOrName, parentClassInstanceOrName)
+    local childName = extractClassName(childClassInstanceOrName)
+    local parentName = extractClassName(parentClassInstanceOrName)
+    return classIs(childName, parentName)
 end
 
 -- The meat of the syntax --------------------------------------------------------------------------
