@@ -85,6 +85,13 @@ local function extractPrefixesFromVariable(varName)
     return varName, prefixesFound
 end
 
+---@param classDefinition LassClassDefinition
+---@param variableName string
+---@return boolean
+local function variableNameClashesWithInheritance(classDefinition, variableName)
+    return classDefinition.fullComposition[variableName]
+end
+
 local prefixValid = {
     [""] = true, -- for spacing if there's no modifiers
     private = true,
@@ -104,6 +111,11 @@ local function registerClassVariablesFromBody(className, classBody)
         varName, prefixes = extractPrefixesFromVariable(varName)
         local noAccessModifier = not (prefixes["private"] or prefixes["protected"] or prefixes["public"])
         local accessLevel = (prefixes["private"] and "private_" .. className) or (prefixes["protected"] and "protected") or "public"
+
+        -- Reserved variable names for inheriting classes
+        if variableNameClashesWithInheritance(classDefinition, varName) then
+            error("Cannot use variable name '" .. varName .. "' (reserved by parent class with the same name)", 4)
+        end
 
         -- Check for nonsense
         local accessModifierCount = 0
@@ -151,7 +163,9 @@ local function registerClassVariablesFromBody(className, classBody)
             ---@type unknown
             varValue = function (t, ...)
                 if type(t) ~= "table" then
-                    error("Trying to call method '" .. tostring(varName) .. "' as a non-method function (using . instead of :)\nTo define a non-method function, use the 'nonmethod' modifier in the variable definition.", 2)
+                    error("Syntax error: trying to call method '" .. tostring(varName) .. "' as a non-method function (using . instead of :)\nTo define a non-method function, use the 'nonmethod' modifier in the variable definition.", 2)
+                elseif not t.__currentAccessLevel then
+                    error("Method is being called on a non-class value (method is not stored inside class table)\nPlease pass in the method's selfness manually: sometable.thisMethod(self) instead of sometable:thisMethod()\n(This error may be a result of incorrect syntax in calling a parent's version of a method from the overriding method)", 2)
                 end
                 local previousAccessLevel = t.__currentAccessLevel
                 t.__currentAccessLevel = "private_" .. className
@@ -201,17 +215,29 @@ local function defineClass(className, parents, classBody)
     }
     lass.definedClasses[className] = classDefinition
 
-    -- Inherit variables
+    ---@type table<string, table<string, function>>
+    local supers = {}
+
     for parentIndex = #parents, 1, -1 do
         local parentName = parents[parentIndex]
         local parentClassDefinition = lass.definedClasses[parentName]
 
+        -- Track full class composition
         for key, value in pairs(parentClassDefinition.fullComposition) do
             classDefinition.fullComposition[key] = value
         end
         classDefinition.fullComposition[parentName] = true
 
+        -- Prepare a super for this parent name
+        supers[parentName] = {}
+
         for varName, varValue in pairs(parentClassDefinition.variables) do
+
+            if varName == className then
+                error("Cannot inherit from class '" .. parentName .. "' because it contains a variable with the same name as this class (" .. varName .. ")", 3)
+            end
+
+            -- Inherit variables
             local currentVariable = classDefinition.variables[varName]
             if currentVariable then
                 if currentVariable.accessLevel ~= varValue.accessLevel then
@@ -233,7 +259,14 @@ local function defineClass(className, parents, classBody)
             end
 
             classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = value, nonOverwriteable = varValue.nonOverwriteable, isReference = varValue.isReference}
+            if type(value) == "function" and varValue.nonOverwriteable then
+                supers[parentName][varName] = value
+            end
         end
+    end
+
+    for key, value in pairs(supers) do
+        classDefinition.variables[key] = {accessLevel = "protected", isReference = true, nonOverwriteable = true, defaultValue = value}
     end
 
     registerClassVariablesFromBody(className, classBody)
