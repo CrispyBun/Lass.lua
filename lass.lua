@@ -117,6 +117,19 @@ local function registerClassVariablesFromBody(className, classBody)
             error("Cannot use variable name '" .. varName .. "' (reserved by parent class with the same name)", 4)
         end
 
+        -- Constructor restrictions
+        if varName == className then
+            if type(varValue) ~= "function" then
+                error("Constructor is not a function", 4)
+            end
+            if prefixes["nonmethod"] then
+                error("Constructors may not be marked as nonmethod", 4)
+            end
+            if prefixes.private or prefixes.protected then
+                error("Constructors must be public", 4)
+            end
+        end
+
         -- Check for nonsense
         local accessModifierCount = 0
         accessModifierCount = accessModifierCount + (prefixes.private and 1 or 0)
@@ -231,13 +244,13 @@ local function defineClass(className, parents, classBody)
         -- Prepare a super for this parent name
         supers[parentName] = {}
 
+        -- Inherit variables
         for varName, varValue in pairs(parentClassDefinition.variables) do
 
             if varName == className then
                 error("Cannot inherit from class '" .. parentName .. "' because it contains a variable with the same name as this class (" .. varName .. ")", 3)
             end
 
-            -- Inherit variables
             local currentVariable = classDefinition.variables[varName]
             if currentVariable then
                 if currentVariable.accessLevel ~= varValue.accessLevel then
@@ -253,22 +266,46 @@ local function defineClass(className, parents, classBody)
                 if currentVariable.nonOverwriteable ~= varValue.nonOverwriteable then error("Variable '" .. varName .. "' is defined both as constant and as non-constant in parents.\nIn the case of functions, methods are considered constant, while nonmethods are not.", 3) end
             end
 
+            -- Parse nils
             local value = varValue.defaultValue
             if value == lass.softNil and currentVariable then
                 value = currentVariable.defaultValue
             end
 
-            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = value, nonOverwriteable = varValue.nonOverwriteable, isReference = varValue.isReference}
+            -- Track the super
             if type(value) == "function" and varValue.nonOverwriteable then
                 supers[parentName][varName] = value
             end
+
+            -- Add the variable
+            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = value, nonOverwriteable = varValue.nonOverwriteable, isReference = varValue.isReference}
         end
     end
 
-    for key, value in pairs(supers) do
-        classDefinition.variables[key] = {accessLevel = "protected", isReference = true, nonOverwriteable = true, defaultValue = value}
+    -- Finish making access to super and previous constructors
+    for parentName, parentMethods in pairs(supers) do
+        local constructorFound = false
+        for key, value in pairs(parentMethods) do
+            if key == parentName then
+                setmetatable(supers[parentName], {__call = function (t, self, ...)
+                    return value(self, ...)
+                end})
+                constructorFound = true
+            end
+        end
+        if not constructorFound then
+            setmetatable(supers[parentName], {__call = function (t, self, ...)
+                error("Attempting to call constructor of class '" .. parentName .. "', which has no constructor", 2)
+            end})
+        end
     end
 
+    -- Register the supers
+    for parentName, parentMethods in pairs(supers) do
+        classDefinition.variables[parentName] = {accessLevel = "protected", isReference = true, nonOverwriteable = true, defaultValue = parentMethods}
+    end
+
+    -- Add the defined variables for this class
     registerClassVariablesFromBody(className, classBody)
 end
 
@@ -343,8 +380,12 @@ local function generateClassInstance(className, ...)
         __classDefinition = classDefinition,
         __currentAccessLevel = "public"
     }
+    setmetatable(accessTable, instanceAccessMetatable)
 
-    return setmetatable(accessTable, instanceAccessMetatable)
+    -- Call the constructor
+    if accessTable.__variablesRaw[className] then accessTable[className](accessTable, ...) end
+
+    return accessTable
 end
 
 ---Creates a new class instance
