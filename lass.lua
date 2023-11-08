@@ -60,6 +60,9 @@ lass.nilValue = {} -- table for identification purposes
 lass.softNil = {}
 lass.hardNil = lass.nilValue
 
+setmetatable(lass.softNil, {__tostring = function (t) return "LassSoftNil" end})
+setmetatable(lass.hardNil, {__tostring = function (t) return "LassHardNil" end})
+
 ---@param parents string[]
 local function verifyParentValidity(parents)
     for i = 1, #parents do
@@ -116,6 +119,11 @@ local function registerClassVariablesFromBody(className, classBody)
 
     local varNamesUsed = {}
     for varName, varValue in pairs(classBody) do
+        local unprocessedVarName = varName
+        if not (type(unprocessedVarName) == "string" or type(unprocessedVarName) == "number") then
+            error("Field '" .. tostring(unprocessedVarName) .. "' is a key of type " .. type(unprocessedVarName) .. ", which isn't supported", 4)
+        end
+
         local prefixes
         varName, prefixes = extractPrefixesFromVariable(varName)
         local noAccessModifier = not (prefixes["private"] or prefixes["protected"] or prefixes["public"])
@@ -153,6 +161,14 @@ local function registerClassVariablesFromBody(className, classBody)
             if not prefixValid[prefix] then
                 error("Unknown access modifier '" .. prefix .. "' in variable '" .. varName .. "'", 4)
             end
+        end
+        if prefixes["reference"] then
+            if type(varValue) ~= "table" or varValue == lass.nilValue or varValue == lass.softNil then
+                error("Variable '" .. varName .. "' is marked as reference, but isn't a table", 4)
+            end
+        end
+        if prefixes["nonmethod"] and type(varValue) ~= "function" then
+            error("Variable '" .. varName .. "' is marked as nonmethod, but isn't a function", 4)
         end
 
         -- Make sure there's no duplicate variable names
