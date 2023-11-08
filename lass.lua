@@ -468,6 +468,10 @@ function lass.is(childClassInstanceOrName, parentClassInstanceOrName)
 end
 lass.implements = lass.is
 
+function lass.pairs(t)
+    return pairs(t.__variablesRaw or t)
+end
+
 -- The meat of the syntax --------------------------------------------------------------------------
 
 local classMakingTable = {}
