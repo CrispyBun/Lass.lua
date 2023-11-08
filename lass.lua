@@ -50,6 +50,7 @@ end
 ---@field name string
 ---@field variables table<string, LassVariableDefinition>
 ---@field fullComposition table<string, boolean>
+---@field directParents string[]
 
 -- The stuff that makes Lass churn -----------------------------------------------------------------
 
@@ -92,6 +93,14 @@ local function variableNameClashesWithInheritance(classDefinition, variableName)
     return classDefinition.fullComposition[variableName]
 end
 
+local defaultConstructor = function (self, ...)
+    local parents = self.__classDefinition.directParents
+    for i = #parents, 1, -1 do
+        local parentName = parents[i]
+        if self.__variablesRaw[parentName][parentName] then self[parentName](self, ...) end
+    end
+end
+
 local prefixValid = {
     [""] = true, -- for spacing if there's no modifiers
     private = true,
@@ -119,7 +128,9 @@ local function registerClassVariablesFromBody(className, classBody)
 
         -- Constructor restrictions
         if varName == className then
-            if type(varValue) ~= "function" then
+            if varValue == "inherit" then
+                varValue = defaultConstructor
+            elseif type(varValue) ~= "function" then
                 error("Constructor is not a function", 4)
             end
             if prefixes["nonmethod"] then
@@ -224,7 +235,8 @@ local function defineClass(className, parents, classBody)
     local classDefinition = {
         name = className,
         variables = {},
-        fullComposition = {}
+        fullComposition = {},
+        directParents = deepCopy(parents)
     }
     lass.definedClasses[className] = classDefinition
 
