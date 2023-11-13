@@ -45,6 +45,7 @@ end
 ---@field defaultValue any
 ---@field nonOverwriteable boolean
 ---@field isReference boolean
+---@field isInstanced boolean
 
 ---@class LassClassDefinition
 ---@field name string
@@ -111,7 +112,8 @@ local prefixValid = {
     public = true,
     nonmethod = true,
     reference = true,
-    const = true
+    const = true,
+    instance = true
 }
 
 local function registerClassVariablesFromBody(className, classBody)
@@ -169,6 +171,19 @@ local function registerClassVariablesFromBody(className, classBody)
         end
         if prefixes["nonmethod"] and type(varValue) ~= "function" then
             error("Variable '" .. varName .. "' is marked as nonmethod, but isn't a function", 4)
+        end
+        if prefixes["instance"] then
+            prefixes["nonmethod"] = true
+            if type(varValue) == "string" then
+                if not lass.definedClasses[varValue] then
+                    error("Variable '" .. varName .. "' is trying to instance class '" .. varValue .. "', which has not been defined", 4)
+                end
+                if varValue == className then
+                    error("Variable '" .. varName .. "' is trying to instance the class it is in, which would cause a stack overflow", 4)
+                end
+            elseif type(varValue) ~= "function" then
+                error("Variable '" .. varName .. "' is marked as instance but is of type " .. type(varValue) .. " ('instance' variables may only be class names or functions)", 4)
+            end
         end
 
         -- Make sure there's no duplicate variable names
@@ -236,7 +251,7 @@ local function registerClassVariablesFromBody(className, classBody)
         if classDefinition.variables[varName] then
             classDefinition.variables[varName].defaultValue = varValue
         else
-            classDefinition.variables[varName] = {accessLevel = accessLevel, defaultValue = varValue, nonOverwriteable = nonOverwriteable, isReference = isReference}
+            classDefinition.variables[varName] = {accessLevel = accessLevel, defaultValue = varValue, nonOverwriteable = nonOverwriteable, isReference = isReference, isInstanced = prefixes["instance"]}
         end
     end
 end
@@ -306,7 +321,7 @@ local function defineClass(className, parents, classBody)
             end
 
             -- Add the variable
-            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = value, nonOverwriteable = varValue.nonOverwriteable, isReference = varValue.isReference}
+            classDefinition.variables[varName] = {accessLevel = varValue.accessLevel, defaultValue = value, nonOverwriteable = varValue.nonOverwriteable, isReference = varValue.isReference, isInstanced = varValue.isInstanced}
         end
     end
 
@@ -330,7 +345,7 @@ local function defineClass(className, parents, classBody)
 
     -- Register the supers
     for parentName, parentMethods in pairs(supers) do
-        classDefinition.variables[parentName] = {accessLevel = "protected", isReference = true, nonOverwriteable = true, defaultValue = parentMethods}
+        classDefinition.variables[parentName] = {accessLevel = "protected", isReference = true, nonOverwriteable = true, defaultValue = parentMethods, isInstanced = false}
     end
 
     -- Add the defined variables for this class
@@ -346,6 +361,12 @@ local function copyVariablesFromDefinition(classDefinitionVariables)
             copiedValue = nil
         elseif type(varValue) == "table" and not varDefinition.isReference then
             copiedValue = deepCopy(varValue)
+        elseif varDefinition.isInstanced then
+            if type(varValue) == "string" then
+                copiedValue = lass.new(varValue)
+            elseif type(varValue) == "function" then
+                copiedValue = varValue()
+            end
         end
 
         variableTable[varName] = copiedValue
