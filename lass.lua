@@ -502,19 +502,16 @@ end
 ---@param parentClassName string
 ---@return boolean
 local function classIs(childClassName, parentClassName)
-    local class = lass.classIsDefined(childClassName)
-
-    if not class then error("Unknown class '" .. childClassName .. "'", 3) end
-    if not lass.classIsDefined(parentClassName) then error("Unknown class '" .. parentClassName .. "'", 3) end
-
-    if type(class) == "function" then return childClassName == parentClassName end
-
     if childClassName == parentClassName then return true end
+
+    local class = lass.definedClasses[childClassName]
+    if not class then return false end
+
     return class.fullComposition[parentClassName] or false
 end
 
 ---@param class any
----@return string
+---@return string|nil
 local function extractClassName(class)
     local classType = type(class)
     if classType == "string" then
@@ -525,9 +522,11 @@ local function extractClassName(class)
         if class.__classDefinition then
             return class.__classDefinition.name
         end
-        error("Trying to compare a non-class table to a class", 3)
+        if class.__name then
+            return class.__name
+        end
     end
-    error("Invalid type (" .. classType .. "), please provide a class instance or class name", 3)
+    return nil
 end
 
 ---Checks if the first argument is a subclass of or the same class as the second argument
@@ -537,6 +536,7 @@ end
 function lass.is(childClassInstanceOrName, parentClassInstanceOrName)
     local childName = extractClassName(childClassInstanceOrName)
     local parentName = extractClassName(parentClassInstanceOrName)
+    if not childName or not parentName then return false end
     return classIs(childName, parentName)
 end
 lass.implements = lass.is
