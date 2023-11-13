@@ -2,6 +2,12 @@ local lass = {}
 local lassMetatable = {}
 setmetatable(lass, lassMetatable)
 
+local CONFIG = {}
+
+--- If true, when reading an undefined field from a class, it will return nil instead of erroring
+---@diagnostic disable-next-line: undefined-global
+CONFIG.undefinedReturnsNil = LASSCONFIG_UNDEFINED_RETURNS_NIL or false
+
 -- Some handy local functions to be used within the library ----------------------------------------
 
 ---@diagnostic disable-next-line: deprecated
@@ -374,11 +380,14 @@ local function copyVariablesFromDefinition(classDefinitionVariables)
     return variableTable
 end
 
-local function verifyInstanceAccessLevel(instance, varName)
+local function verifyInstanceAccessLevel(instance, varName, writing)
     local classDefinitionVariables = instance.__classDefinition.variables
     local varDefinition = classDefinitionVariables[varName]
 
     if not varDefinition then
+        if CONFIG.undefinedReturnsNil and not writing then
+            return
+        end
         error("Trying to access undefined variable '" .. tostring(varName) .. "'", 3)
     end
 
@@ -414,7 +423,7 @@ function instanceAccessMetatable.__index(instance, varName)
     return instance.__variablesRaw[varName]
 end
 function instanceAccessMetatable.__newindex(instance, varName, newValue)
-    verifyInstanceAccessLevel(instance, varName)
+    verifyInstanceAccessLevel(instance, varName, true)
     verifyAllowedOverwrite(instance, varName)
     instance.__variablesRaw[varName] = newValue
 end
