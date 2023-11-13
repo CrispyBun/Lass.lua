@@ -131,7 +131,8 @@ local prefixValid = {
     nonmethod = true,
     reference = true,
     const = true,
-    instance = true
+    instance = true,
+    operator = true
 }
 
 local function registerClassVariablesFromBody(className, classBody)
@@ -148,6 +149,19 @@ local function registerClassVariablesFromBody(className, classBody)
         varName, prefixes = extractPrefixesFromVariable(varName)
         local noAccessModifier = not (prefixes["private"] or prefixes["protected"] or prefixes["public"])
         local accessLevel = (prefixes["private"] and "private_" .. className) or (prefixes["protected"] and "protected") or "public"
+
+        -- Operators are special
+        if prefixes["operator"] then
+            varName = "__" .. varName
+
+            if accessLevel ~= "public" then
+                error("Operator variable '" .. varName .. "' is not public (all operators must be public)", 4)
+            end
+
+            if varName == "__index" or varName == "__newindex" then
+                error("Trying to create an unavailable operator. Operators __index and __newindex are unavailable, as the library uses them internally.", 4)
+            end
+        end
 
         -- Reserved variable names for inheriting classes
         if variableNameClashesWithInheritance(classDefinition, varName) then
@@ -455,7 +469,14 @@ local function generateClassInstance(className, ...)
     -- Call the constructor
     if accessTable.__variablesRaw[className] then accessTable[className](accessTable, ...) end
 
-    return accessTable
+    -- Operators
+    setmetatable(variableTable, variableTable)
+    variableTable.__index = accessTable
+    variableTable.__newindex = accessTable
+    local operatorWrapper = {}
+    setmetatable(operatorWrapper, variableTable)
+
+    return operatorWrapper -- If there were no operators, returning accessTable works also
 end
 
 ---Creates a new class instance
