@@ -67,13 +67,25 @@ lass.nilValue = {} -- table for identification purposes
 lass.softNil = {}
 lass.hardNil = lass.nilValue
 
+---@type table<string, function>
+lass.definedMimicClasses = {}
+
 setmetatable(lass.softNil, {__tostring = function (t) return "LassSoftNil" end})
 setmetatable(lass.hardNil, {__tostring = function (t) return "LassHardNil" end})
+
+---@param className string
+---@return LassClassDefinition|function|nil
+function lass.classIsDefined(className)
+    return lass.definedClasses[className] or lass.definedMimicClasses[className]
+end
 
 ---@param parents string[]
 local function verifyParentValidity(parents)
     for i = 1, #parents do
         local parentName = parents[i]
+        if lass.definedMimicClasses[parentName] then
+            error("Trying to inherit from a mimic class ('" .. parentName .. "'), which isn't possible", 4)
+        end
         if not lass.definedClasses[parentName] then
             error("Trying to inherit from a class that hasn't been defined ('" .. parentName .. "')", 4)
         end
@@ -181,7 +193,7 @@ local function registerClassVariablesFromBody(className, classBody)
         if prefixes["instance"] then
             prefixes["nonmethod"] = true
             if type(varValue) == "string" then
-                if not lass.definedClasses[varValue] then
+                if not lass.classIsDefined(varValue) then
                     error("Variable '" .. varName .. "' is trying to instance class '" .. varValue .. "', which has not been defined", 4)
                 end
                 if varValue == className then
@@ -452,8 +464,14 @@ end
 ---@param ... unknown
 ---@return `T`
 function lass.new(className, ...)
-    if not lass.definedClasses[className] then
+    local class = lass.classIsDefined(className)
+
+    if not class then
         error("Class '" .. tostring(className) .. "' has not been defined", 2)
+    end
+
+    if type(class) == "function" then
+        return class(...)
     end
 
     return generateClassInstance(className, ...)
@@ -463,11 +481,15 @@ end
 ---@param parentClassName string
 ---@return boolean
 local function classIs(childClassName, parentClassName)
-    local classDefinition = lass.definedClasses[childClassName]
-    if not classDefinition then error("Unknown class '" .. childClassName .. "'", 3) end
+    local class = lass.classIsDefined(childClassName)
+
+    if not class then error("Unknown class '" .. childClassName .. "'", 3) end
+    if not lass.classIsDefined(parentClassName) then error("Unknown class '" .. parentClassName .. "'", 3) end
+
+    if type(class) == "function" then return childClassName == parentClassName end
 
     if childClassName == parentClassName then return true end
-    return classDefinition.fullComposition[parentClassName] or false
+    return class.fullComposition[parentClassName] or false
 end
 
 ---@param class any
@@ -575,9 +597,16 @@ end
 -- The initial class 'ClassName' call
 lassMetatable.__call = function (callingTable, className)
     assertType(className, "string", "Class name is of type " .. tostring(type(className)) .. " instead of string \nTo create a class, use:\nlass 'ClassName' { }")
-    assertWithLevel(not lass.definedClasses[className], "Class '" .. className .. "' is already defined")
+    assertWithLevel(not lass.classIsDefined(className), "Class '" .. className .. "' is already defined")
     classMakingTable.upcomingClassName = className
     return classMakingTable
+end
+
+-- Defining mimics
+function lass.defineMimic(className, constructor)
+    assertType(className, "string", "Class name is of type " .. tostring(type(className)) .. " instead of string")
+    assertType(constructor, "function", "Class constructor must be a function")
+    lass.definedMimicClasses[className] = constructor
 end
 
 return lass
