@@ -249,11 +249,19 @@ local function registerClassVariablesFromBody(className, classBody)
             local definedMethod = varValue
             ---@type unknown
             varValue = function (t, ...)
+                -- Try to make sure the function is being called correctly
                 if type(t) ~= "table" then
                     error("Syntax error: trying to call method '" .. tostring(varName) .. "' as a non-method function (using . instead of :)\nTo define a non-method function, use the 'nonmethod' modifier in the variable definition.", 2)
-                elseif not t.__currentAccessLevel then
+                elseif not (t.__currentAccessLevel) or (not t.__classDefinition) then
                     error("Method is being called on a non-class value (method is not stored inside class table)\nPlease pass in the method's selfness manually: sometable.thisMethod(self) instead of sometable:thisMethod()\n(This error may be a result of incorrect syntax in calling a parent's version of a method from the overriding method)", 2)
                 end
+
+                -- Prevent weird accessing of protected from other classes
+                if not lass.is(className, t.__classDefinition.name) then
+                    error("Trying to call a method from class " .. className .. " on instance of class " .. t.__classDefinition.name, 2)
+                end
+
+                -- Modify access level and run
                 local previousAccessLevel = t.__currentAccessLevel
                 t.__currentAccessLevel = "private_" .. className
                 local returns = {definedMethod(t, ...)}
@@ -627,6 +635,7 @@ end
 function lass.defineMimic(className, constructor)
     assertType(className, "string", "Class name is of type " .. tostring(type(className)) .. " instead of string")
     assertType(constructor, "function", "Class constructor must be a function")
+    assertWithLevel(not lass.classIsDefined(className), "Class '" .. className .. "' is already defined")
     lass.definedMimicClasses[className] = constructor
 end
 
