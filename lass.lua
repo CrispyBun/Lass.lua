@@ -78,6 +78,7 @@ setmetatable(lass.hardNil, {__tostring = function (t) return "LassHardNil" end})
 function lass.classIsDefined(className)
     return lass.definedClasses[className] or lass.definedMimicClasses[className]
 end
+lass.exists = lass.classIsDefined
 
 ---@param parents string[]
 local function verifyParentValidity(parents)
@@ -467,24 +468,24 @@ local function generateClassInstance(className, ...)
     local classDefinitionVariables = classDefinition.variables
 
     local variableTable = copyVariablesFromDefinition(classDefinitionVariables)
+
+    -- User defined operators and instance access metatable
+    setmetatable(variableTable, variableTable)
+    variableTable.__index = instanceAccessMetatable.__index
+    variableTable.__newindex = instanceAccessMetatable.__newindex
+
+    -- Instance access wrapper
     local accessTable = {
         __variablesRaw = variableTable,
         __classDefinition = classDefinition,
         __currentAccessLevel = "public"
     }
-    setmetatable(accessTable, instanceAccessMetatable)
+    setmetatable(accessTable, variableTable)
 
     -- Call the constructor
     if accessTable.__variablesRaw[className] then accessTable[className](accessTable, ...) end
 
-    -- Operators
-    setmetatable(variableTable, variableTable)
-    variableTable.__index = accessTable
-    variableTable.__newindex = accessTable
-    local operatorWrapper = {}
-    setmetatable(operatorWrapper, variableTable)
-
-    return operatorWrapper -- If there were no operators, returning accessTable works also
+    return accessTable
 end
 
 ---Creates a new class instance
