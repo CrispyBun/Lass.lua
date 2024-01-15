@@ -598,22 +598,14 @@ end
 classMakingTable.D = classMakingTable.from -- class 'Class' :D 'Parent' is valid syntax, you are welcome
 
 function classMakingMetatable:__call(classBody)
-    -- Adding many classes without table
-    if type(classBody) == "string" then
-        self[#self+1] = classBody
-        return self
-    end
+    -- -- Adding many classes without table
+    -- if type(classBody) == "string" then
+    --     self[#self+1] = classBody
+    --     return self
+    -- end
 
     if type(classBody) ~= "table" then
         error("Class body isn't a table value (" .. tostring(type(classBody)) .. "). Please use:\nlass 'Class' : from {'ParentA', 'ParentB'} { }", 2)
-    end
-
-    if classBody[1] then
-        local invalidEntries = {}
-        for _, v in ipairs(classBody) do
-            invalidEntries[#invalidEntries+1] = tostring(v)
-        end
-        error("Invalid syntax (Class body has numerical entries [" .. table.concat(invalidEntries, ", ") .. "]). This error may be a result of using multiple tables to define parent classes, which isn't possible.", 2)
     end
 
     -- Time to create the class
