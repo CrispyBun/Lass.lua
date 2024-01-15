@@ -4,6 +4,12 @@ setmetatable(lass, lassMetatable)
 
 local CONFIG = {}
 
+-- If true, disables many features, but class instances run as fast as vanilla lua tables.
+-- All code written in non-simple mode works in simple mode (unless youre accessing internal functionality variables),
+-- so it is possible to write code in non-simple mode for better error messages, then switch to simple mode to ship the program
+---@diagnostic disable-next-line: undefined-global
+CONFIG.enableSimpleMode = LASSCONFIG_ENABLE_SIMPLE_MODE or false
+
 --- If true, when reading an undefined field from a class, it will return nil instead of erroring
 ---@diagnostic disable-next-line: undefined-global
 CONFIG.undefinedReturnsNil = LASSCONFIG_UNDEFINED_RETURNS_NIL or false
@@ -247,27 +253,30 @@ local function registerClassVariablesFromBody(className, classBody)
         -- Modify functions' access levels
         if type(varValue) == "function" and not prefixes["nonmethod"] then
             nonOverwriteable = true
-            local definedMethod = varValue
-            ---@type unknown
-            varValue = function (t, ...)
-                -- Try to make sure the function is being called correctly
-                if type(t) ~= "table" then
-                    error("Syntax error: trying to call method '" .. tostring(varName) .. "' as a non-method function (using . instead of :)\nTo define a non-method function, use the 'nonmethod' modifier in the variable definition.", 2)
-                elseif not (t.__currentAccessLevel) or (not t.__classDefinition) then
-                    error("Method is being called on a non-class value (method is not stored inside class table)\nPlease pass in the method's selfness manually: sometable.thisMethod(self) instead of sometable:thisMethod()\n(This error may be a result of incorrect syntax in calling a parent's version of a method from the overriding method)", 2)
-                end
 
-                -- Prevent weird accessing of protected from other classes
-                if not lass.is(t.__classDefinition.name, className) then
-                    error("Trying to call a method from class " .. className .. " on instance of class " .. t.__classDefinition.name .. ", which is not its subclass", 2)
-                end
+            if not CONFIG.enableSimpleMode then
+                local classMethod = varValue
+                ---@type unknown
+                varValue = function (t, ...)
+                    -- Try to make sure the function is being called correctly
+                    if type(t) ~= "table" then
+                        error("Syntax error: trying to call method '" .. tostring(varName) .. "' as a non-method function (using . instead of :)\nTo define a non-method function, use the 'nonmethod' modifier in the variable definition.", 2)
+                    elseif not (t.__currentAccessLevel) or (not t.__classDefinition) then
+                        error("Method is being called on a non-class value (method is not stored inside class table)\nPlease pass in the method's selfness manually: sometable.thisMethod(self) instead of sometable:thisMethod()\n(This error may be a result of incorrect syntax in calling a parent's version of a method from the overriding method)", 2)
+                    end
 
-                -- Modify access level and run
-                local previousAccessLevel = t.__currentAccessLevel
-                t.__currentAccessLevel = "private_" .. className
-                local returns = {definedMethod(t, ...)}
-                t.__currentAccessLevel = previousAccessLevel
-                return unpack(returns)
+                    -- Prevent weird accessing of protected from other classes
+                    if not lass.is(t.__classDefinition.name, className) then
+                        error("Trying to call a method from class " .. className .. " on instance of class " .. t.__classDefinition.name .. ", which is not its subclass", 2)
+                    end
+
+                    -- Modify access level and run
+                    local previousAccessLevel = t.__currentAccessLevel
+                    t.__currentAccessLevel = "private_" .. className
+                    local returns = {classMethod(t, ...)}
+                    t.__currentAccessLevel = previousAccessLevel
+                    return unpack(returns)
+                end
             end
         end
 
@@ -468,17 +477,18 @@ local function generateClassInstance(className, ...)
     local classDefinitionVariables = classDefinition.variables
 
     local variableTable = copyVariablesFromDefinition(classDefinitionVariables)
+    local accessTable = CONFIG.enableSimpleMode and variableTable or {} -- A wrapper in non-simple mode, simply the variable table in simple mode
 
-    -- Instance access metamethods put alongside user defined operators
-    variableTable.__index = instanceAccessMetatable.__index
-    variableTable.__newindex = instanceAccessMetatable.__newindex
+    -- Instance access metamethods put alongside user defined operators (only applies to non simple mode)
+    if not CONFIG.enableSimpleMode then
+        variableTable.__index = instanceAccessMetatable.__index
+        variableTable.__newindex = instanceAccessMetatable.__newindex
+    end
 
     -- Instance access wrapper
-    local accessTable = {
-        __variablesRaw = variableTable,
-        __classDefinition = classDefinition,
-        __currentAccessLevel = "public"
-    }
+    accessTable.__variablesRaw = variableTable
+    accessTable.__classDefinition = classDefinition
+    accessTable.__currentAccessLevel = "public"
     setmetatable(accessTable, variableTable)
 
     -- Call the constructor
