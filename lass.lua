@@ -343,7 +343,7 @@ local function defineClass(className, parents, classBody)
                     if string.sub(accessLevelCurrent, 1, 8) == "private_" then accessLevelCurrent = "private" end
                     if string.sub(accessLevelNext, 1, 8) == "private_" then accessLevelNext = "private" end
                     if accessLevelCurrent == "private" and accessLevelNext == "private" then
-                        error("Variable clash in inheriting classes - variable '" .. varName .. "' is private and defined in more than one parent (due to a limitation, private variables need to be unique in the whole inheritance tree)", 3)
+                        error("Variable clash in inheriting classes - variable '" .. varName .. "' is private and defined in more than one parent (due to a limitation, private variables need to have unique names in the whole inheritance tree)", 3)
                     end
                     error("Variable access level clash in inheriting classes - variable '" .. varName .. "' is defined both as " .. accessLevelCurrent .. " and " .. accessLevelNext .. " in parents", 3)
                 end
