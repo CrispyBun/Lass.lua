@@ -258,8 +258,8 @@ local function registerClassVariablesFromBody(className, classBody)
                 end
 
                 -- Prevent weird accessing of protected from other classes
-                if not lass.is(className, t.__classDefinition.name) then
-                    error("Trying to call a method from class " .. className .. " on instance of class " .. t.__classDefinition.name, 2)
+                if not lass.is(t.__classDefinition.name, className) then
+                    error("Trying to call a method from class " .. className .. " on instance of class " .. t.__classDefinition.name .. ", which is not its subclass", 2)
                 end
 
                 -- Modify access level and run
