@@ -469,8 +469,7 @@ local function generateClassInstance(className, ...)
 
     local variableTable = copyVariablesFromDefinition(classDefinitionVariables)
 
-    -- User defined operators and instance access metatable
-    setmetatable(variableTable, variableTable)
+    -- Instance access metamethods put alongside user defined operators
     variableTable.__index = instanceAccessMetatable.__index
     variableTable.__newindex = instanceAccessMetatable.__newindex
 
