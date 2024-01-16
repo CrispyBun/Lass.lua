@@ -402,8 +402,8 @@ local function defineClass(className, parents, classBody)
     registerClassVariablesFromBody(className, classBody)
 end
 
-local function copyVariablesFromDefinition(classDefinitionVariables)
-    local variableTable = {}
+local function copyVariablesFromDefinition(classDefinitionVariables, outputTable)
+    local variableTable = outputTable or {}
     for varName, varDefinition in pairs(classDefinitionVariables) do
         local varValue = varDefinition.defaultValue
         local copiedValue = varValue
@@ -558,6 +558,14 @@ function lass.is(childClassInstanceOrName, parentClassInstanceOrName)
     return classIs(childName, parentName)
 end
 lass.implements = lass.is
+
+function lass.reset(classInstance, ...)
+    local classDefiniton = classInstance.__classDefinition
+    local className = classDefiniton.name
+    local classDefinitonVariables = classDefiniton.variables
+    copyVariablesFromDefinition(classDefinitonVariables, classInstance.__variablesRaw)
+    if classInstance.__variablesRaw[className] then classInstance[className](classInstance, ...) end
+end
 
 -- The meat of the syntax --------------------------------------------------------------------------
 
