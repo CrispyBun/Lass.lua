@@ -591,6 +591,12 @@ function lass.reset(classInstance, ...)
     if classInstance.__variablesRaw[className] then classInstance[className](classInstance, ...) end
 end
 
+-- Ipairs that will iterate over numerical entries in class instances,
+-- but still works as regular ipairs for other tables
+function lass.ipairs(classInstanceOrTable)
+    return ipairs(classInstanceOrTable.__variablesRaw or classInstanceOrTable)
+end
+
 -- The meat of the syntax --------------------------------------------------------------------------
 
 local classMakingTable = {}
