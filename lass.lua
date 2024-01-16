@@ -425,6 +425,8 @@ local function copyVariablesFromDefinition(classDefinitionVariables, outputTable
 end
 
 local function verifyInstanceAccessLevel(instance, varName, writing)
+    if type(varName) == "number" then return end
+
     local classDefinitionVariables = instance.__classDefinition.variables
     local varDefinition = classDefinitionVariables[varName]
 
@@ -450,6 +452,8 @@ local function verifyInstanceAccessLevel(instance, varName, writing)
 end
 
 local function verifyAllowedOverwrite(instance, varName)
+    if type(varName) == "number" then return end
+
     local classDefinitionVariables = instance.__classDefinition.variables
     local varDefinition = classDefinitionVariables[varName]
     local nonOverwriteable = varDefinition.nonOverwriteable
@@ -578,6 +582,7 @@ function lass.allOf(classInstanceOrName)
 end
 
 -- Resets all variables in an instance to their default values
+-- Only resets variables that have been explicitly defined in the class, variables added to the instance after it was created are ignored.
 function lass.reset(classInstance, ...)
     local classDefiniton = classInstance.__classDefinition
     local className = classDefiniton.name
