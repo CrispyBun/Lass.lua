@@ -559,6 +559,25 @@ function lass.is(childClassInstanceOrName, parentClassInstanceOrName)
 end
 lass.implements = lass.is
 
+-- Gets the class name of an instance
+function lass.getClassName(classInstance)
+    return classInstance.__classDefinition.name
+end
+
+-- Lists all classes that are a subclass of the input class (bit of an expensive operation)
+function lass.allOf(classInstanceOrName)
+    local className = extractClassName(classInstanceOrName)
+    assert(className ~= "string", "Invalid input class")
+    local subclasses = {}
+    for name in pairs(lass.definedClasses) do
+        if classIs(name, className) and (name ~= className) then
+            subclasses[#subclasses+1] = name
+        end
+    end
+    return subclasses
+end
+
+-- Resets all variables in an instance to their default values
 function lass.reset(classInstance, ...)
     local classDefiniton = classInstance.__classDefinition
     local className = classDefiniton.name
