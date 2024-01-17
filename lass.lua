@@ -523,6 +523,7 @@ local function generateClassInstance(className, ...)
 
         variableTable.__index = indexMethod
         variableTable.__newindex = newIndexMethod
+        variableTable.__metatable = "Class metatable - editing is not recommended"
     end
 
     -- Instance access wrapper
