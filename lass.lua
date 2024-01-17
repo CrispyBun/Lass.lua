@@ -10,9 +10,14 @@ local CONFIG = {}
 ---@diagnostic disable-next-line: undefined-global
 CONFIG.enableSimpleMode = LASSCONFIG_ENABLE_SIMPLE_MODE or false
 
---- If true, when reading an undefined field from a class, it will return nil instead of erroring
+-- If true, when reading an undefined field from a class, it will return nil instead of erroring
 ---@diagnostic disable-next-line: undefined-global
 CONFIG.undefinedReturnsNil = LASSCONFIG_UNDEFINED_RETURNS_NIL or false
+
+-- If true, allows assigning of variables that haven't been defined in the class,
+-- as well as reading undefined variables, which will return nil
+---@diagnostic disable-next-line: undefined-global
+CONFIG.disableUndefined = LASSCONFIG_DISABLE_UNDEFINED or false
 
 -- Some handy local functions to be used within the library ----------------------------------------
 
@@ -427,6 +432,7 @@ local function verifyInstanceAccessLevel(instance, varName, writing)
     local varDefinition = classDefinitionVariables[varName]
 
     if not varDefinition then
+        if CONFIG.disableUndefined then return end
         if CONFIG.undefinedReturnsNil and not writing then
             return
         end
@@ -449,10 +455,10 @@ local function verifyInstanceAccessLevel(instance, varName, writing)
 end
 
 local function verifyAllowedOverwrite(instance, varName)
-    if type(varName) == "number" then return end
-
     local classDefinitionVariables = instance.__classDefinition.variables
     local varDefinition = classDefinitionVariables[varName]
+    if not varDefinition then return end
+
     local nonOverwriteable = varDefinition.nonOverwriteable
     if nonOverwriteable then
         if type(varDefinition.defaultValue) == "function" then
