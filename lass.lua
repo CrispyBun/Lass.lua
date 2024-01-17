@@ -164,10 +164,6 @@ local function registerClassVariablesFromBody(className, classBody)
             if accessLevel ~= "public" then
                 error("Operator variable '" .. varName .. "' is not public (all operators must be public)", 4)
             end
-
-            if varName == "__index" or varName == "__newindex" then
-                error("Trying to create an unavailable operator. Operators __index and __newindex are unavailable, as the library uses them internally.", 4)
-            end
         end
 
         -- Reserved variable names for inheriting classes
@@ -248,7 +244,7 @@ local function registerClassVariablesFromBody(className, classBody)
         end
 
         local nonOverwriteable = prefixes["const"] or false
-        local isReference = prefixes["reference"] or false
+        local isReference = prefixes["reference"] or prefixes["operator"] or false -- __index operators must reference their tables
 
         -- Modify functions' access levels
         if type(varValue) == "function" and not prefixes["nonmethod"] then
@@ -434,7 +430,8 @@ local function verifyInstanceAccessLevel(instance, varName, writing)
         if CONFIG.undefinedReturnsNil and not writing then
             return
         end
-        error("Trying to access undefined variable '" .. tostring(varName) .. "'", 3)
+        local accessWord = writing and "assign" or "read"
+        error("Trying to " .. accessWord .. " undefined variable '" .. tostring(varName) .. "'", 3)
     end
 
     local neededAccessLevel = varDefinition.accessLevel
@@ -485,8 +482,47 @@ local function generateClassInstance(className, ...)
 
     -- Instance access metamethods put alongside user defined operators (only applies to non simple mode)
     if not CONFIG.enableSimpleMode then
-        variableTable.__index = instanceAccessMetatable.__index
-        variableTable.__newindex = instanceAccessMetatable.__newindex
+        local accessIndexMethod = instanceAccessMetatable.__index
+        local accessNewIndexMethod = instanceAccessMetatable.__newindex
+        local userIndexMethod = variableTable.__index
+        local userNewIndexMethod = variableTable.__newindex
+
+        local indexMethod = accessIndexMethod
+        local newIndexMethod = accessNewIndexMethod
+
+        -- In non-simple mode, user defined __index and __newindex need special closures
+
+        if userIndexMethod then
+            indexMethod = function (instance, varName)
+                if instance.__variablesRaw[varName] ~= nil then
+                    return accessIndexMethod(instance, varName)
+                end
+
+                if type(userIndexMethod) == "table" then return userIndexMethod[varName] end
+
+                if type(userIndexMethod) == "function" then return userIndexMethod(instance, varName) end
+            end
+        end
+
+        if userNewIndexMethod then
+            newIndexMethod = function (instance, varName, newValue)
+                if instance.__variablesRaw[varName] ~= nil then
+                    return accessNewIndexMethod(instance, varName, newValue)
+                end
+
+                if type(userNewIndexMethod) == "table" then
+                    userNewIndexMethod[varName] = newValue
+                    return
+                end
+
+                if type(userNewIndexMethod) == "function" then
+                    return userNewIndexMethod(instance, varName, newValue)
+                end
+            end
+        end
+
+        variableTable.__index = indexMethod
+        variableTable.__newindex = newIndexMethod
     end
 
     -- Instance access wrapper
@@ -496,7 +532,7 @@ local function generateClassInstance(className, ...)
     setmetatable(accessTable, variableTable)
 
     -- Call the constructor
-    if accessTable.__variablesRaw[className] then accessTable[className](accessTable, ...) end
+    if rawget(accessTable.__variablesRaw, className) then accessTable[className](accessTable, ...) end
 
     return accessTable
 end
@@ -588,7 +624,7 @@ function lass.reset(classInstance, ...)
     local className = classDefiniton.name
     local classDefinitonVariables = classDefiniton.variables
     copyVariablesFromDefinition(classDefinitonVariables, classInstance.__variablesRaw)
-    if classInstance.__variablesRaw[className] then classInstance[className](classInstance, ...) end
+    if rawget(classInstance.__variablesRaw, className) then classInstance[className](classInstance, ...) end
 end
 
 -- Ipairs that will iterate over numerical entries in class instances,
