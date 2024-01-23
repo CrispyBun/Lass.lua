@@ -112,6 +112,55 @@ local btn = new 'Button'
 print(btn.x, btn.y, btn.width, btn.height) --> 100  100  250  10
 ```
 
+## Soft nil
+Alongside the regular nilValue mentioned above, there is also one that behaves differently in multiple inheritance.
+```lua
+class 'Projectile' {
+  onHit = class.nilValue,
+  onTick = class.nilValue
+}
+
+class 'ExplodingProjectile' : from 'Projectile' {
+  onHit = "explode"
+}
+
+class 'FlamingProjectile' : from 'Projectile' {
+  onTick = "fire"
+}
+
+class 'ExplodingFlamingProjectile' : from {'ExplodingProjectile', 'FlamingProjectile'} {
+}
+
+local projectile = new 'ExplodingFlamingProjectile'
+print(projectile.onHit)  --> explode
+print(projectile.onTick) --> nil
+```
+Here, ExplodingProjectile has priority to set default values over FlamingProjectile, and its default value for onTick is nil (as set by lass.nilValue), which overwrites what otherwise would have been "fire".
+
+We can set the default value to softNil instead, which will always be overwritten in multiple inheritance by any other value (and if it's not overwritten, the class instance will still have the field defined as nil).
+```lua
+class 'Projectile' {
+  onHit = class.softNil, -- Soft nil instead of hard nil
+  onTick = class.softNil
+}
+
+class 'ExplodingProjectile' : from 'Projectile' {
+  onHit = "explode"
+}
+
+class 'FlamingProjectile' : from 'Projectile' {
+  onTick = "fire"
+}
+
+class 'ExplodingFlamingProjectile' : from {'ExplodingProjectile', 'FlamingProjectile'} {
+}
+
+local projectile = new 'ExplodingFlamingProjectile'
+print(projectile.onHit)  --> explode
+print(projectile.onTick) --> fire
+```
+Also, instead of class.nilValue, you can write class.hardNil, which is the same thing.
+
 ## Constructors
 You can define a constructor for a class by making a method with the same name as the class.
 ```lua
