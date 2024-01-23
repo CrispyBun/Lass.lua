@@ -35,7 +35,7 @@ class 'JuiceBottle' {
   public___volume = 10,
   private__saturation = 0.5,
 
-  getFulfillment = function(self)
+  public__getFulfillment = function(self)
     return self.saturation * self.volume
   end
 }
@@ -44,9 +44,28 @@ local juice = new 'JuiceBottle'
 print(juice:getFulfillment()) --> 5
 juice.saturation = 1 -- Error: Trying to access private variable 'saturation' in the public scope
 ```
-The variable names remain the same, but we can add access modifiers to them by writing their keyword, followed by two or more underscores. The declaration of `volume` being public is optional - if we don't define otherwise, a variable will be public by default.
+The variable names remain the same, but we can add access modifiers to them by writing their keyword, followed by two or more underscores. The declaration of variables being public is optional - if we don't define otherwise, a variable will be public by default.
 
 There are more things we can mark variables with other than access modifiers, which will be shown further down.
+
+## Nil values
+Lass will not allow you to access variables that have not been defined in the class (by default, but this can be configured).
+```lua
+class 'Pet' {
+  name = "Luna"
+}
+local pet = new 'Pet'
+pet.owner = "someone" -- Error: Trying to assign undefined variable 'owner'
+```
+However, sometimes, we may want to define a variable, but have its default value be nil. We can't set the value to actual nil in the definition, of course, because that is equivalent to not adding it to the table at all. Instead, we can use Lass' nilValue to define it, which will be replaced by actual nil when instancing the class:
+```lua
+class 'Pet' {
+  name = "Luna",
+  owner = class.nilValue
+}
+local pet = new 'Pet' --> pet.owner is nil here
+pet.owner = "someone" --> pet.owner gets set to "someone"
+```
 
 ## Inheritance
 You can inherit from a class to get all of its variables and methods. You can also override methods, and still call the previous method in the override.
