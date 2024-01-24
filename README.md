@@ -281,3 +281,65 @@ table.insert(allyB.enemies, "Skelly")
 local allyC = new 'Ally'
 print(allyC.enemies[1], allyC.enemies[2]) --> Slime  Skelly
 ```
+## Operator
+You can define any operator that lua metatables support.
+```lua
+class 'Vector2' {
+  x = 0,
+  y = 0,
+
+  Vector2 = function(self, x, y)
+    self.x = x or self.x
+    self.y = y or self.y
+  end,
+
+  operator__tostring = function(self)
+    return string.format("(%s, %s)", self.x, self.y)
+  end,
+
+  operator__add = function(a, b)
+    return new ('Vector2', a.x + b.x, a.y + b.y)
+  end
+}
+
+local vecA = new ('Vector2', 2, 6)
+local vecB = new ('Vector2', 4, 10)
+print(vecA + vecB) --> (6, 16)
+```
+## Numeric fields
+Instances require you to define a variable in the definition, otherwise you can't access that field in the instance. The exception to this are numeric fields - those are always accessible, even if they weren't explicitly defined, so that you can easily access the full array part of the table. This exception does extend to non-integer values too.
+```lua
+class 'Array' {
+}
+
+local arr = new 'Array'
+
+arr[1] = "one"
+arr[2] = "two"
+arr[2.5] = "this works too"
+print(arr[100]) --> nil
+print(arr["str"]) -- Error: Trying to read undefined variable 'str'
+```
+Do note that Lass instances are a bit different from usual tables, and also different in a different way if you toggle the optimisation config (mentioned later). Because of this, you should use `class.ipairs(inst)` on class instances instead of regular lua ipairs - it works like regular ipairs (even works on regular tables), but will iterate correctly over the array part of the instance. class.pairs() doesn't exist, as it didn't make sense to me to iterate over variables, as well as extra fields Lass adds.
+
+## Lass' functions
+```lua
+class.is(classChild, classParent)
+```
+Checks if the first argument is a child class of, or the same class as, the second argument. Arguments can be class instances or class names. You can alternatively also use class.implements(), which is the same thing.
+
+```lua
+class.getClassName(classInstance)
+```
+Returns the name of the class the instance was instanced from.
+
+```lua
+class.reset(classInstance, ...)
+```
+Returns all the class' variables to their default values, and calls the constructor (if present). Extra arguments get passed into the constructor.
+
+```lua
+class.ipairs(t)
+```
+ipairs which also works on class instances.
+
