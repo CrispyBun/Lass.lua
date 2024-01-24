@@ -544,25 +544,6 @@ local function generateClassInstance(className, ...)
     return accessTable
 end
 
----Creates a new class instance
----@generic T
----@param className `T`
----@param ... unknown
----@return `T`
-function lass.new(className, ...)
-    local class = lass.classIsDefined(className)
-
-    if not class then
-        error("Class '" .. tostring(className) .. "' has not been defined", 2)
-    end
-
-    if type(class) == "function" then
-        return class(...)
-    end
-
-    return generateClassInstance(className, ...)
-end
-
 ---@param childClassName string
 ---@param parentClassName string
 ---@return boolean
@@ -592,52 +573,6 @@ local function extractClassName(class)
         end
     end
     return nil
-end
-
----Checks if the first argument is a subclass of or the same class as the second argument
----@param childClassInstanceOrName table|string
----@param parentClassInstanceOrName table|string
----@return boolean
-function lass.is(childClassInstanceOrName, parentClassInstanceOrName)
-    local childName = extractClassName(childClassInstanceOrName)
-    local parentName = extractClassName(parentClassInstanceOrName)
-    if not childName or not parentName then return false end
-    return classIs(childName, parentName)
-end
-lass.implements = lass.is
-
--- Gets the class name of an instance
-function lass.getClassName(classInstance)
-    return classInstance.__classDefinition.name
-end
-
--- Lists all classes that are a subclass of the input class (bit of an expensive operation)
-function lass.allOf(classInstanceOrName)
-    local className = extractClassName(classInstanceOrName)
-    assert(className ~= "string", "Invalid input class")
-    local subclasses = {}
-    for name in pairs(lass.definedClasses) do
-        if classIs(name, className) and (name ~= className) then
-            subclasses[#subclasses+1] = name
-        end
-    end
-    return subclasses
-end
-
--- Resets all variables in an instance to their default values
--- Only resets variables that have been explicitly defined in the class, variables added to the instance after it was created are ignored.
-function lass.reset(classInstance, ...)
-    local classDefiniton = classInstance.__classDefinition
-    local className = classDefiniton.name
-    local classDefinitonVariables = classDefiniton.variables
-    copyVariablesFromDefinition(classDefinitonVariables, classInstance.__variablesRaw)
-    if rawget(classInstance.__variablesRaw, className) then classInstance[className](classInstance, ...) end
-end
-
--- Ipairs that will iterate over numerical entries in class instances,
--- but still works as regular ipairs for other tables
-function lass.ipairs(classInstanceOrTable)
-    return ipairs(classInstanceOrTable.__variablesRaw or classInstanceOrTable)
 end
 
 -- The meat of the syntax --------------------------------------------------------------------------
@@ -710,12 +645,79 @@ lassMetatable.__call = function (callingTable, className)
     return classMakingTable
 end
 
--- Defining mimics
+---Creates a new class instance
+---@generic T
+---@param className `T`
+---@param ... unknown
+---@return `T`
+function lass.new(className, ...)
+    local class = lass.classIsDefined(className)
+
+    if not class then
+        error("Class '" .. tostring(className) .. "' has not been defined", 2)
+    end
+
+    if type(class) == "function" then
+        return class(...)
+    end
+
+    return generateClassInstance(className, ...)
+end
+
+---Defines a new mimic
+---@param className string
+---@param constructor function
 function lass.defineMimic(className, constructor)
     assertType(className, "string", "Class name is of type " .. tostring(type(className)) .. " instead of string")
     assertType(constructor, "function", "Class constructor must be a function")
     assertWithLevel(not lass.classIsDefined(className), "Class '" .. className .. "' is already defined")
     lass.definedMimicClasses[className] = constructor
+end
+
+---Checks if the first argument is a subclass of or the same class as the second argument
+---@param childClassInstanceOrName table|string
+---@param parentClassInstanceOrName table|string
+---@return boolean
+function lass.is(childClassInstanceOrName, parentClassInstanceOrName)
+    local childName = extractClassName(childClassInstanceOrName)
+    local parentName = extractClassName(parentClassInstanceOrName)
+    if not childName or not parentName then return false end
+    return classIs(childName, parentName)
+end
+lass.implements = lass.is
+
+-- Lists all classes that are a subclass of the input class (bit of an expensive operation)
+function lass.allOf(classInstanceOrName)
+    local className = extractClassName(classInstanceOrName)
+    assert(className ~= "string", "Invalid input class")
+    local subclasses = {}
+    for name in pairs(lass.definedClasses) do
+        if classIs(name, className) and (name ~= className) then
+            subclasses[#subclasses+1] = name
+        end
+    end
+    return subclasses
+end
+
+-- Gets the class name of an instance
+function lass.getClassName(classInstance)
+    return classInstance.__classDefinition.name
+end
+
+-- Resets all variables in an instance to their default values
+-- Only resets variables that have been explicitly defined in the class, variables added to the instance after it was created are ignored.
+function lass.reset(classInstance, ...)
+    local classDefiniton = classInstance.__classDefinition
+    local className = classDefiniton.name
+    local classDefinitonVariables = classDefiniton.variables
+    copyVariablesFromDefinition(classDefinitonVariables, classInstance.__variablesRaw)
+    if rawget(classInstance.__variablesRaw, className) then classInstance[className](classInstance, ...) end
+end
+
+-- Ipairs that will iterate over numerical entries in class instances,
+-- but still works as regular ipairs for other tables
+function lass.ipairs(classInstanceOrTable)
+    return ipairs(classInstanceOrTable.__variablesRaw or classInstanceOrTable)
 end
 
 return lass
