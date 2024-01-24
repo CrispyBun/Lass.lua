@@ -12,7 +12,7 @@ class 'JuiceBottle' {
   volume = 10,
   saturation = 0.5,
 
-  getFulfillment = function(self)
+  getFulfillment = function(self) -- "self" must always be present in methods before any other arguments
     return self.saturation * self.volume
   end
 }
@@ -200,3 +200,84 @@ class 'BigBullet' : from 'Bullet' {
 }
 ```
 By setting the constructor to "inherit", it will simply call the parent constructor (or all parent constructors, in the case of multiple inheritance) with the arguments passed into `new`.
+
+## Instance modifier
+As mentioned previously, there are more modifiers than just access modifiers. One of those is the instance modifier. Instance can either be the name of a class, or a function. If it is the name of a class, then the variable will be set to a new instance of that class each time the variable is created (if the class has a constructor, it will be called with no arguments). If it is a function, then upon creation of the variable, that function will be called and the variable will be set to its return value. The function is passed no arguments.
+
+Since there are modifiers we may want to use alongside each other (e.g. an access modifier along with the instance modifier), we can put as many modifiers as we want, seperated by a single underscore.
+```lua
+class 'Item' {
+}
+
+class 'Character' {
+  public_instance__heldItem = 'Item',
+  public_instance__name = function() return "Laura" end
+}
+
+local inst = new 'Character'
+print(inst.heldItem) --> table (instance of the Item class)
+print(inst.name)     --> Laura
+```
+
+## Const and nonmethod
+Another available prefix is const. This makes it impossible to overwrite a value and it will always stay the default one (however, inheriting classes can still override it):
+```lua
+class 'User' {
+  const__permissions = "guest"
+}
+
+class 'SuperUser' : from 'User' {
+  const__permissions = "admin"
+}
+
+local user = new 'User'
+local superUser = new 'SuperUser'
+print(user.permissions)       --> guest
+print(superUser.permissions)  --> admin
+user.permissions = "infinite" --> Error: Trying to overwrite a constant value
+```
+All methods in classes are constant. If you want to override this, and assign a function as a non-constant value, you can use the nonmethod modifier:
+```lua
+class 'Graph' {
+  nonmethod__graphFunction = function(x) return 2 * x end
+}
+
+local graph = new 'Graph'
+print(graph.graphFunction(6)) --> 12
+graph.graphFunction = function(x) return x * x + 10 end -- Overwrite the function value, this would error if it was a method
+print(graph.graphFunction(6)) --> 46
+```
+Do note that a method and a nonmethod are different. Firstly, methods always *must* receive their selfness or they will throw an error (`instance:method()` instead of `instance.method()`), where as for a nonmethod function, you decide if you want to pass in the selfness or not, so unlike in methods, the first parameter doesn't need to be `self`.
+
+Secondly, and more importantly, function values do not always have access to protected and private variables. They have the access of wherever you're calling them from - if called directly on the instance, the access level is public. But if a method calls them, they gain private access.
+
+## Reference
+By default, tables defined in the class are copied over to each new instance.
+```lua
+class 'Lang' {
+  translations = {
+    ["game.sword"] = "Sword",
+    ["game.armor"] = "Armor"
+  }
+}
+
+local en = new 'Lang'
+local fr = new 'Lang'
+fr.translations["game.sword"] = "Epee"
+print(en.translations["game.sword"]) --> Sword
+print(fr.translations["game.sword"]) --> Epee
+```
+But, if you want to assign a table to a variable to be shared across all instances, use the reference modifier:
+```lua
+class 'Ally' {
+  reference__enemies = {}
+}
+
+local allyA = new 'Ally'
+local allyB = new 'Ally'
+table.insert(allyA.enemies, "Slime")
+table.insert(allyB.enemies, "Skelly")
+
+local allyC = new 'Ally'
+print(allyC.enemies[1], allyC.enemies[2]) --> Slime  Skelly
+```
