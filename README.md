@@ -343,3 +343,61 @@ class.ipairs(t)
 ```
 ipairs which also works on class instances.
 
+## Mimic-classes
+In Lass, you can define a "mimic class", which simply pretends to be a defined class when using `class.new`. The defineMimic function takes the name of the mimic and a function, which gets passed constructor arguments and should return the new instance.
+
+This can be useful for having a unified `new` keyword for your own classes as well as, for example, [LÖVE](https://love2d.org/) objects:
+```lua
+class.defineMimic('love.Quad', function(x, y, width, height, sw, sh) return love.graphics.newQuad(x, y, width, height, sw, sh) end)
+
+local quad = new ('love.Quad', 0, 0, 16, 16, 256, 256)
+print(quad) --> Quad (assuming this is ran in LÖVE)
+```
+Mimics also work with the "instance" modifier mentioned earlier.
+
+## Lass config
+Lass can be configured to behave differently by setting some specific global variables to true before loading Lass with require.
+### Undefined returns nil
+`LASSCONFIG_UNDEFINED_RETURNS_NIL`
+
+By default, when accessing a field in a Lass instance that isn't defined in the class, Lass will error. Enabling this config will simply make it return nil instead.
+
+### Disable undefined
+`LASSCONFIG_DISABLE_UNDEFINED`
+
+In addition to mirroring the functionality of "undefined returns nil", it also allows *setting* any undefined fields in a class instance.
+
+### Simple mode
+`LASSCONFIG_ENABLE_SIMPLE_MODE`
+
+Drastically optimises Lass instances, but disables some Lass features. Described in more detail in the next section.
+
+## Simple mode
+Lass is not fast. Checks are in place to give meaningful error messages, and access to protected, private, or undefined variables is forbidden, which means a couple of function calls on every single class variable access (yucky and slow).
+
+By turning on simple mode however, Lass instances will run **as fast as vanilla lua tables** as all the above mentioned checks are removed. This means that in simple mode, the idea of a private or protected variable means nothing. However, code written with simple mode disabled will also work with simple mode enabled. So, it is possible (and advisable) to work with Lass having simple mode off, and right before shipping, enabling it to boost performance (and quite significantly at that).
+```lua
+LASSCONFIG_ENABLE_SIMPLE_MODE = true
+local class = require("lass") -- speedy (this must, of course, be done on the very first lass require)
+```
+
+## Lua language server
+Lass is made to work well with the VSCode [lua-language-server extension](https://github.com/LuaLS/lua-language-server). `class.new` will define the returned table as an instance of a class with that name.
+```lua
+---@class Flower
+---@field private color string
+---@field getColor function
+
+class 'Flower' {
+    private__color = "red",
+    getColor = function (self)
+        return self.color
+    end
+}
+
+-- 'flower' will be of type Flower here.
+local flower = new 'Flower'
+```
+
+## A note on metatable protection
+A Lass instance is its own metatable, and the metatable of a lass instance can be changed fairly easily. It is quite easy to mess with it, so Lass instances aren't too fit to be accessed by sandboxed environments running external code that shouldn't mess anything up.
